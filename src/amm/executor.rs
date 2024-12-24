@@ -75,7 +75,9 @@ impl RaydiumAmm {
                     &swap_input.input_token_mint,
                     Some(&swap_input.output_token_mint),
                     &PoolFetchParams {
-                        pool_type: PoolType::Standard,
+                        // MI
+                        // pool_type: PoolType::Standard, // vanilla
+                        pool_type: PoolType::All,
                         pool_sort: PoolSort::Liquidity,
                         sort_type: PoolSortOrder::Descending,
                         page_size: 10,
