@@ -1,4 +1,6 @@
-use crate::api_v3::response::{ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys};
+use crate::api_v3::response::{
+    ApiV3ClmmPool, ApiV3ClmmPoolKeys, ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys,
+};
 use crate::api_v3::{ApiV3Client, PoolFetchParams, PoolSort, PoolSortOrder, PoolType};
 use crate::builder::SwapInstructionsBuilder;
 use crate::types::{
@@ -75,9 +77,37 @@ impl RaydiumAmm {
                     &swap_input.input_token_mint,
                     Some(&swap_input.output_token_mint),
                     &PoolFetchParams {
-                        // MI
-                        // pool_type: PoolType::Standard, // vanilla
-                        pool_type: PoolType::All,
+                        pool_type: PoolType::Standard,
+                        pool_sort: PoolSort::Liquidity,
+                        sort_type: PoolSortOrder::Descending,
+                        page_size: 10,
+                        page: 1,
+                    },
+                )
+                .await?;
+            pool_id = response.pools.into_iter().find_map(|pool| {
+                if pool.mint_a.address == swap_input.input_token_mint
+                    && pool.mint_b.address == swap_input.output_token_mint
+                    || pool.mint_a.address == swap_input.output_token_mint
+                        && pool.mint_b.address == swap_input.input_token_mint
+                        && pool.program_id == RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID
+                {
+                    Some(pool.id)
+                } else {
+                    None
+                }
+            });
+        }
+
+        // MI, if still None, try another pool type clmm
+        if pool_id.is_none() {
+            let response: ApiV3PoolsPage<ApiV3ClmmPool> = self
+                .api
+                .fetch_pool_by_mints(
+                    &swap_input.input_token_mint,
+                    Some(&swap_input.output_token_mint),
+                    &PoolFetchParams {
+                        pool_type: PoolType::Concentrated,
                         pool_sort: PoolSort::Liquidity,
                         sort_type: PoolSortOrder::Descending,
                         page_size: 10,
@@ -114,6 +144,31 @@ impl RaydiumAmm {
                 "Failed to get pool keys for raydium standard pool {}",
                 pool_id
             ))?;
+
+            // let mut keys;
+            // if let Ok(response) = self
+            //     .api
+            //     .fetch_pool_keys_by_ids::<ApiV3StandardPoolKeys>(
+            //         [&pool_id].into_iter().map(|id| id.to_string()).collect(),
+            //     )
+            //     .await
+            // {
+            //     keys = response.first().context(format!(
+            //         "Failed to get pool keys for raydium standard pool {}",
+            //         pool_id
+            //     ))?;
+            // } else {
+            //     let response = self
+            //         .api
+            //         .fetch_pool_keys_by_ids::<ApiV3ClmmPoolKeys>(
+            //             [&pool_id].into_iter().map(|id| id.to_string()).collect(),
+            //         )
+            //         .await?;
+            //     keys = response.first().context(format!(
+            //         "Failed to get pool keys for raydium clmm pool {}",
+            //         pool_id
+            //     ))?;
+            // }
 
             (AmmKeys::try_from(keys)?, MarketKeys::try_from(keys)?)
         } else {
@@ -500,6 +555,38 @@ impl TryFrom<&crate::api_v3::response::ApiV3StandardPoolKeys> for AmmKeys {
     fn try_from(
         keys: &crate::api_v3::response::ApiV3StandardPoolKeys,
     ) -> Result<Self, Self::Error> {
+        let market_keys = keys
+            .keys
+            .market
+            .as_ref()
+            .context("market keys should be present for amm")?;
+        Ok(AmmKeys {
+            amm_pool: keys.id,
+            amm_coin_mint: keys.mint_a.address,
+            amm_pc_mint: keys.mint_b.address,
+            amm_authority: keys.keys.authority,
+            amm_target: keys
+                .keys
+                .target_orders
+                .context("target orders should be present for amm")?,
+            amm_coin_vault: keys.vault.a,
+            amm_pc_vault: keys.vault.b,
+            amm_lp_mint: keys.keys.mint_lp.address,
+            amm_open_order: keys
+                .keys
+                .open_orders
+                .context("open orders should be present for amm")?,
+            market_program: market_keys.market_program_id,
+            market: market_keys.market_id,
+            nonce: 0, // random
+        })
+    }
+}
+
+impl TryFrom<&crate::api_v3::response::ApiV3ClmmPoolKeys> for AmmKeys {
+    type Error = anyhow::Error;
+
+    fn try_from(keys: &crate::api_v3::response::ApiV3ClmmPoolKeys) -> Result<Self, Self::Error> {
         let market_keys = keys
             .keys
             .market
