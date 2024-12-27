@@ -1,5 +1,5 @@
 use crate::api_v3::response::{
-    ApiV3ClmmPool, ApiV3ClmmPoolKeys, ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys,
+    ApiV3ClmmPool, ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys,
 };
 use crate::api_v3::{ApiV3Client, PoolFetchParams, PoolSort, PoolSortOrder, PoolType};
 use crate::builder::SwapInstructionsBuilder;
@@ -583,34 +583,34 @@ impl TryFrom<&crate::api_v3::response::ApiV3StandardPoolKeys> for AmmKeys {
     }
 }
 
-impl TryFrom<&crate::api_v3::response::ApiV3ClmmPoolKeys> for AmmKeys {
-    type Error = anyhow::Error;
+// impl TryFrom<&crate::api_v3::response::ApiV3ClmmPoolKeys> for AmmKeys {
+//     type Error = anyhow::Error;
 
-    fn try_from(keys: &crate::api_v3::response::ApiV3ClmmPoolKeys) -> Result<Self, Self::Error> {
-        let market_keys = keys
-            .keys
-            .market
-            .as_ref()
-            .context("market keys should be present for amm")?;
-        Ok(AmmKeys {
-            amm_pool: keys.id,
-            amm_coin_mint: keys.mint_a.address,
-            amm_pc_mint: keys.mint_b.address,
-            amm_authority: keys.keys.authority,
-            amm_target: keys
-                .keys
-                .target_orders
-                .context("target orders should be present for amm")?,
-            amm_coin_vault: keys.vault.a,
-            amm_pc_vault: keys.vault.b,
-            amm_lp_mint: keys.keys.mint_lp.address,
-            amm_open_order: keys
-                .keys
-                .open_orders
-                .context("open orders should be present for amm")?,
-            market_program: market_keys.market_program_id,
-            market: market_keys.market_id,
-            nonce: 0, // random
-        })
-    }
-}
+//     fn try_from(keys: &crate::api_v3::response::ApiV3ClmmPoolKeys) -> Result<Self, Self::Error> {
+//         let market_keys = keys
+//             .keys
+//             .market
+//             .as_ref()
+//             .context("market keys should be present for amm")?;
+//         Ok(AmmKeys {
+//             amm_pool: keys.id,
+//             amm_coin_mint: keys.mint_a.address,
+//             amm_pc_mint: keys.mint_b.address,
+//             amm_authority: keys.keys.authority,
+//             amm_target: keys
+//                 .keys
+//                 .target_orders
+//                 .context("target orders should be present for amm")?,
+//             amm_coin_vault: keys.vault.a,
+//             amm_pc_vault: keys.vault.b,
+//             amm_lp_mint: keys.keys.mint_lp.address,
+//             amm_open_order: keys
+//                 .keys
+//                 .open_orders
+//                 .context("open orders should be present for amm")?,
+//             market_program: market_keys.market_program_id,
+//             market: market_keys.market_id,
+//             nonce: 0, // random
+//         })
+//     }
+// }
