@@ -6,7 +6,7 @@ use pools::{
     _ApiV3StandardPoolKeys,
 };
 use serde::{Deserialize, Serialize};
-pub use token::ApiV3Token;
+pub use token::{ApiV3MintPrice, ApiV3Token};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ApiV3Response<T> {

@@ -1,4 +1,4 @@
-use super::response::{ApiV3PoolsPage, ApiV3Token, ApiV3TokenList};
+use super::response::{ApiV3MintPrice, ApiV3PoolsPage, ApiV3Token, ApiV3TokenList};
 use super::{handle_response_or_error, PoolFetchParams};
 use serde::de::DeserializeOwned;
 use solana_sdk::pubkey::Pubkey;
@@ -109,6 +109,18 @@ impl ApiV3Client {
             100,
             params.page
         );
+        Ok(handle_response_or_error(reqwest::get(url).await?)
+            .await?
+            .data)
+    }
+
+    // MI
+    pub async fn get_mint_price(
+        &self,
+        mints: Vec<String>,
+    ) -> Result<Vec<ApiV3MintPrice>, anyhow::Error> {
+        let mints = mints.join(",");
+        let url = format!("{}/mint/price?mints={}", &self.base_url, mints);
         Ok(handle_response_or_error(reqwest::get(url).await?)
             .await?
             .data)

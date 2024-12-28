@@ -34,6 +34,15 @@ pub struct ApiV3Token {
     pub extensions: ExtensionsItem,
 }
 
+// MI
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiV3MintPrice {
+    #[serde(with = "field_as_string")]
+    pub address: Pubkey,
+    pub price: f64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionsItem {
