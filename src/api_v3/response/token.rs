@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::api_v3::serde_helpers::field_as_string;
 
 use serde::{Deserialize, Serialize};
@@ -34,14 +36,17 @@ pub struct ApiV3Token {
     pub extensions: ExtensionsItem,
 }
 
+// // MI
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// pub struct ApiV3MintPrice {
+//     #[serde(with = "field_as_string")]
+//     pub address: Pubkey,
+//     pub price: f64,
+// }
+
 // MI
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApiV3MintPrice {
-    #[serde(with = "field_as_string")]
-    pub address: Pubkey,
-    pub price: f64,
-}
+pub type ApiV3MintPrice = HashMap</*mint address*/ Pubkey, /*price*/ f64>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
