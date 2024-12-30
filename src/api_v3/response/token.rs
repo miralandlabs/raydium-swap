@@ -46,7 +46,8 @@ pub struct ApiV3Token {
 // }
 
 // MI
-pub type ApiV3MintPrice = HashMap</*mint address*/ String, /*price*/ f64>;
+// pub type ApiV3MintPrice = HashMap</*mint address*/ String, /*price*/ f64>;
+pub type ApiV3MintPrice = HashMap</*mint address*/ String, /*price*/ String>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
