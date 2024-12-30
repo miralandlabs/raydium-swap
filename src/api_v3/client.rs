@@ -118,7 +118,7 @@ impl ApiV3Client {
     pub async fn get_mint_price(
         &self,
         mints: Vec<String>,
-    ) -> Result<Vec<ApiV3MintPrice>, anyhow::Error> {
+    ) -> Result<ApiV3MintPrice, anyhow::Error> {
         let mints = mints.join(",");
         let url = format!("{}/mint/price?mints={}", &self.base_url, mints);
         Ok(handle_response_or_error(reqwest::get(url).await?)
