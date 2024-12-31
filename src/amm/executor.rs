@@ -1,6 +1,4 @@
-use crate::api_v3::response::{
-    ApiV3ClmmPool, ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys,
-};
+use crate::api_v3::response::{ApiV3PoolsPage, ApiV3StandardPool, ApiV3StandardPoolKeys};
 use crate::api_v3::{ApiV3Client, PoolFetchParams, PoolSort, PoolSortOrder, PoolType};
 use crate::builder::SwapInstructionsBuilder;
 use crate::types::{
@@ -22,6 +20,9 @@ use solana_sdk::{pubkey, pubkey::Pubkey};
 const RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID: Pubkey =
     pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 // // https://api-v3.raydium.io/pools/info/mint?mint1=So11111111111111111111111111111111111111112&mint2=EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm&poolType=standard&poolSortField=liquidity&sortType=desc&pageSize=100&page=1
+
+pub const API_CALL_RETRIES: usize = 5;
+pub const API_CALL_DELAY: u64 = 100;
 
 #[derive(Clone)]
 pub struct RaydiumAmm {
@@ -71,50 +72,59 @@ impl RaydiumAmm {
 
         let mut pool_id = swap_input.market;
         if pool_id.is_none() {
-            let response: ApiV3PoolsPage<ApiV3StandardPool> = self
-                .api
-                .fetch_pool_by_mints(
-                    &swap_input.input_token_mint,
-                    Some(&swap_input.output_token_mint),
-                    &PoolFetchParams {
-                        pool_type: PoolType::Standard,
-                        pool_sort: PoolSort::Liquidity,
-                        sort_type: PoolSortOrder::Descending,
-                        page_size: 10,
-                        page: 1,
-                    },
-                )
-                .await?;
-            pool_id = response.pools.into_iter().find_map(|pool| {
-                if pool.mint_a.address == swap_input.input_token_mint
-                    && pool.mint_b.address == swap_input.output_token_mint
-                    || pool.mint_a.address == swap_input.output_token_mint
-                        && pool.mint_b.address == swap_input.input_token_mint
-                        && pool.program_id == RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID
-                {
-                    Some(pool.id)
-                } else {
-                    None
-                }
-            });
-        }
+            // MI vanilla
+            // let response: ApiV3PoolsPage<ApiV3StandardPool> = self
+            //     .api
+            //     .fetch_pool_by_mints(
+            //         &swap_input.input_token_mint,
+            //         Some(&swap_input.output_token_mint),
+            //         &PoolFetchParams {
+            //             pool_type: PoolType::Standard,
+            //             pool_sort: PoolSort::Liquidity,
+            //             sort_type: PoolSortOrder::Descending,
+            //             page_size: 10,
+            //             page: 1,
+            //         },
+            //     )
+            //     .await?;
 
-        // MI, if still None, try another pool type clmm
-        if pool_id.is_none() {
-            let response: ApiV3PoolsPage<ApiV3ClmmPool> = self
-                .api
-                .fetch_pool_by_mints(
-                    &swap_input.input_token_mint,
-                    Some(&swap_input.output_token_mint),
-                    &PoolFetchParams {
-                        pool_type: PoolType::Concentrated,
-                        pool_sort: PoolSort::Liquidity,
-                        sort_type: PoolSortOrder::Descending,
-                        page_size: 10,
-                        page: 1,
-                    },
-                )
-                .await?;
+            // MI apply retry logic
+            let mut attempts = 0;
+            let response = loop {
+                let response: anyhow::Result<ApiV3PoolsPage<ApiV3StandardPool>> = self
+                    .api
+                    .fetch_pool_by_mints(
+                        &swap_input.input_token_mint,
+                        Some(&swap_input.output_token_mint),
+                        &PoolFetchParams {
+                            pool_type: PoolType::Standard,
+                            pool_sort: PoolSort::Liquidity,
+                            sort_type: PoolSortOrder::Descending,
+                            page_size: 10,
+                            page: 1,
+                        },
+                    )
+                    .await;
+
+                match response {
+                    Ok(response) => break response,
+                    Err(err) => {
+                        attempts += 1;
+                        if attempts >= API_CALL_RETRIES {
+                            return Err(anyhow!(
+                                "Max retries({}) reached for fn api.fetch_pool_by_mints(...). Err: {}",
+                                API_CALL_RETRIES,
+                                err
+                            ));
+                        } else {
+                            // sleep and continue to retry
+                            tokio::time::sleep(std::time::Duration::from_millis(API_CALL_DELAY))
+                                .await;
+                        }
+                    }
+                }
+            };
+
             pool_id = response.pools.into_iter().find_map(|pool| {
                 if pool.mint_a.address == swap_input.input_token_mint
                     && pool.mint_b.address == swap_input.output_token_mint
@@ -134,41 +144,47 @@ impl RaydiumAmm {
         };
 
         let (amm_keys, market_keys) = if self.load_keys_by_api {
-            let response = self
-                .api
-                .fetch_pool_keys_by_ids::<ApiV3StandardPoolKeys>(
-                    [&pool_id].into_iter().map(|id| id.to_string()).collect(),
-                )
-                .await?;
-            let keys = response.first().context(format!(
-                "Failed to get pool keys for raydium standard pool {}",
-                pool_id
-            ))?;
-
-            // let mut keys;
-            // if let Ok(response) = self
+            // MI vanilla
+            // let response = self
             //     .api
             //     .fetch_pool_keys_by_ids::<ApiV3StandardPoolKeys>(
             //         [&pool_id].into_iter().map(|id| id.to_string()).collect(),
             //     )
-            //     .await
-            // {
-            //     keys = response.first().context(format!(
-            //         "Failed to get pool keys for raydium standard pool {}",
-            //         pool_id
-            //     ))?;
-            // } else {
-            //     let response = self
-            //         .api
-            //         .fetch_pool_keys_by_ids::<ApiV3ClmmPoolKeys>(
-            //             [&pool_id].into_iter().map(|id| id.to_string()).collect(),
-            //         )
-            //         .await?;
-            //     keys = response.first().context(format!(
-            //         "Failed to get pool keys for raydium clmm pool {}",
-            //         pool_id
-            //     ))?;
-            // }
+            //     .await?;
+
+            // MI apply retry logic
+            let mut attempts = 0;
+            let response = loop {
+                let response = self
+                    .api
+                    .fetch_pool_keys_by_ids::<ApiV3StandardPoolKeys>(
+                        [&pool_id].into_iter().map(|id| id.to_string()).collect(),
+                    )
+                    .await;
+
+                match response {
+                    Ok(response) => break response,
+                    Err(err) => {
+                        attempts += 1;
+                        if attempts >= API_CALL_RETRIES {
+                            return Err(anyhow!(
+                                "Max retries({}) reached for fn api.fetch_pool_keys_by_ids(...). Err: {}",
+                                API_CALL_RETRIES,
+                                err
+                            ));
+                        } else {
+                            // sleep and continue to retry
+                            tokio::time::sleep(std::time::Duration::from_millis(API_CALL_DELAY))
+                                .await;
+                        }
+                    }
+                }
+            };
+
+            let keys = response.first().context(format!(
+                "Failed to get pool keys for raydium standard pool {}",
+                pool_id
+            ))?;
 
             (AmmKeys::try_from(keys)?, MarketKeys::try_from(keys)?)
         } else {
