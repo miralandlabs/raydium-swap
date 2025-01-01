@@ -163,11 +163,16 @@ impl RaydiumAmm {
                     .await;
 
                 match response {
-                    Ok(response) => break response,
+                    Ok(response) => break Ok(response),
                     Err(err) => {
                         attempts += 1;
                         if attempts >= API_CALL_RETRIES {
-                            return Err(anyhow!(
+                            // return Err(anyhow!(
+                            //     "Max retries({}) reached for fn api.fetch_pool_keys_by_ids(...). Err: {}",
+                            //     API_CALL_RETRIES,
+                            //     err
+                            // ));
+                            break Err(anyhow!(
                                 "Max retries({}) reached for fn api.fetch_pool_keys_by_ids(...). Err: {}",
                                 API_CALL_RETRIES,
                                 err
@@ -181,12 +186,113 @@ impl RaydiumAmm {
                 }
             };
 
-            let keys = response.first().context(format!(
-                "Failed to get pool keys for raydium standard pool {}",
-                pool_id
-            ))?;
+            if let Ok(response) = response {
+                let keys = response.first().context(format!(
+                    "Failed to get pool keys for raydium standard pool {}",
+                    pool_id
+                ))?;
 
-            (AmmKeys::try_from(keys)?, MarketKeys::try_from(keys)?)
+                (AmmKeys::try_from(keys)?, MarketKeys::try_from(keys)?)
+            } else {
+                // MI: still resort to utils
+
+                // let amm_keys = raydium_library::amm::utils::load_amm_keys(
+                //     &self.client,
+                //     &RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID,
+                //     &pool_id,
+                // )
+                // .await?;
+
+                // MI apply retry logic
+                let mut attempts = 0;
+                let amm_keys = loop {
+                    let amm_keys = raydium_library::amm::utils::load_amm_keys(
+                        &self.client,
+                        &RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID,
+                        &pool_id,
+                    )
+                    .await;
+
+                    match amm_keys {
+                        Ok(amm_keys) => break amm_keys,
+                        Err(err) => {
+                            attempts += 1;
+                            if attempts >= API_CALL_RETRIES {
+                                return Err(anyhow!(
+                                "Max retries({}) reached for fn amm::utils::load_amm_keys(...). Err: {}",
+                                API_CALL_RETRIES,
+                                err
+                            ));
+                            } else {
+                                tokio::time::sleep(std::time::Duration::from_millis(
+                                    API_CALL_DELAY,
+                                ))
+                                .await;
+                            }
+                        }
+                    }
+                };
+
+                // let market_keys = MarketKeys::from(
+                //     &raydium_library::amm::openbook::get_keys_for_market(
+                //         &self.client,
+                //         &amm_keys.market_program,
+                //         &amm_keys.market,
+                //     )
+                //     .await?,
+                // );
+
+                let market_keys = MarketKeys::from(
+                    // &raydium_library::amm::openbook::get_keys_for_market(
+                    //     &self.client,
+                    //     &amm_keys.market_program,
+                    //     &amm_keys.market,
+                    // )
+                    // .await?,
+                    &{
+                        let mut attempts = 0;
+
+                        let openbook_market_keys = loop {
+                            let openbook_market_keys =
+                                raydium_library::amm::openbook::get_keys_for_market(
+                                    &self.client,
+                                    &amm_keys.market_program,
+                                    &amm_keys.market,
+                                )
+                                .await;
+
+                            match openbook_market_keys {
+                                Ok(openbook_market_keys) => break openbook_market_keys,
+                                Err(err) => {
+                                    attempts += 1;
+                                    if attempts >= API_CALL_RETRIES {
+                                        return Err(anyhow!(
+                                            "Max retries({}) reached for fn amm::openbook::get_keys_for_market(...). Err: {}",
+                                            API_CALL_RETRIES,
+                                            err
+                                        ));
+                                    } else {
+                                        tokio::time::sleep(std::time::Duration::from_millis(
+                                            API_CALL_DELAY,
+                                        ))
+                                        .await;
+                                    }
+                                }
+                            }
+                        };
+                        openbook_market_keys
+                    },
+                );
+
+                (amm_keys, market_keys)
+            }
+
+            // let keys = response.first().context(format!(
+            //     "Failed to get pool keys for raydium standard pool {}",
+            //     pool_id
+            // ))?;
+
+            // (AmmKeys::try_from(keys)?, MarketKeys::try_from(keys)?)
         } else {
             let amm_keys = raydium_library::amm::utils::load_amm_keys(
                 &self.client,
