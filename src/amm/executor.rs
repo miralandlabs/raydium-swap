@@ -24,8 +24,8 @@ const RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID: Pubkey =
 const RAYDIUM_LIQUIDITY_POOL_CPMM_PROGRAM_ID: Pubkey =
     pubkey!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
-pub const API_CALL_RETRIES: usize = 5;
-pub const API_CALL_DELAY: u64 = 100;
+pub const API_CALL_RETRIES: usize = 3;
+pub const API_CALL_DELAY: u64 = 500;
 
 #[derive(Clone)]
 pub struct RaydiumAmm {
