@@ -21,6 +21,9 @@ const RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID: Pubkey =
     pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 // // https://api-v3.raydium.io/pools/info/mint?mint1=So11111111111111111111111111111111111111112&mint2=EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm&poolType=standard&poolSortField=liquidity&sortType=desc&pageSize=100&page=1
 
+const RAYDIUM_LIQUIDITY_POOL_CPMM_PROGRAM_ID: Pubkey =
+    pubkey!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
+
 pub const API_CALL_RETRIES: usize = 5;
 pub const API_CALL_DELAY: u64 = 100;
 
@@ -206,12 +209,30 @@ impl RaydiumAmm {
                 // MI apply retry logic
                 let mut attempts = 0;
                 let amm_keys = loop {
-                    let amm_keys = raydium_library::amm::utils::load_amm_keys(
+                    // let amm_keys = raydium_library::amm::utils::load_amm_keys(
+                    //     &self.client,
+                    //     &RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID,
+                    //     &pool_id,
+                    // )
+                    // .await;
+
+                    // MI add cpmm pool check
+                    let amm_keys = if let Ok(amm_keys) = raydium_library::amm::utils::load_amm_keys(
                         &self.client,
                         &RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID,
                         &pool_id,
                     )
-                    .await;
+                    .await
+                    {
+                        Ok(amm_keys)
+                    } else {
+                        raydium_library::amm::utils::load_amm_keys(
+                            &self.client,
+                            &RAYDIUM_LIQUIDITY_POOL_CPMM_PROGRAM_ID,
+                            &pool_id,
+                        )
+                        .await
+                    };
 
                     match amm_keys {
                         Ok(amm_keys) => break amm_keys,
