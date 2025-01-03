@@ -128,12 +128,14 @@ impl RaydiumAmm {
                 }
             };
 
+            // MI: add CPMM PROGRAM ID
             pool_id = response.pools.into_iter().find_map(|pool| {
                 if pool.mint_a.address == swap_input.input_token_mint
                     && pool.mint_b.address == swap_input.output_token_mint
                     || pool.mint_a.address == swap_input.output_token_mint
                         && pool.mint_b.address == swap_input.input_token_mint
-                        && pool.program_id == RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID
+                        && (pool.program_id == RAYDIUM_LIQUIDITY_POOL_V4_PROGRAM_ID
+                            || pool.program_id == RAYDIUM_LIQUIDITY_POOL_CPMM_PROGRAM_ID)
                 {
                     Some(pool.id)
                 } else {
@@ -143,7 +145,7 @@ impl RaydiumAmm {
         }
 
         let Some(pool_id) = pool_id else {
-            return Err(anyhow!("Failed to get market for swap"));
+            return Err(anyhow!("Failed to get market(pool id) for swap")); // MI: (pool id)
         };
 
         let (amm_keys, market_keys) = if self.load_keys_by_api {
