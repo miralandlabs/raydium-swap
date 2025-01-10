@@ -41,7 +41,7 @@ pub struct SwapInput {
     pub market: Option<Pubkey>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SwapExecutionMode {
     ExactIn,
     ExactOut,
